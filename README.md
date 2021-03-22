@@ -4,6 +4,7 @@ This QVTo project performs a Model-to-model (M2M) transformation from an *".arch
 
 ## UML diagrams
 
+You can see the following mermaid code as a diagram with [this](https://github.com/BackMarket/github-mermaid-extension) browser extension
 ```mermaid
 graph LR
 	model.architecture -. "«instanceof»" .-> architecture.ecore
@@ -15,3 +16,5 @@ graph LR
 	m1.model -. "«instanceof»" .-> model.ecore
 	model.odesign -. "«produces»" .-> m1.model
 ```
+
+Main entry point: https://github.com/tuiSSE/sirius-meta-editor
