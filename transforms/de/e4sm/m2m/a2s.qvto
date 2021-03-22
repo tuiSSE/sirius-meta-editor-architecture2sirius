@@ -1,0 +1,453 @@
+modeltype SDescription "strict" uses description('http://www.eclipse.org/sirius/description/1.1.0');
+modeltype SDiagram "strict" uses diagram('http://www.eclipse.org/sirius/diagram/1.1.0');
+modeltype SViewpoint "strict" uses viewpoint('http://www.eclipse.org/sirius/1.1.0');
+modeltype SDiagramDescription "strict" uses description('http://www.eclipse.org/sirius/diagram/description/1.1.0');
+modeltype SStyle "strict" uses style('http://www.eclipse.org/sirius/description/style/1.1.0');
+modeltype ArchitectureImpl uses ari('http://e4sm-projekt.de/ecore/ari');
+modeltype Architecture "strict" uses architecture('http://e4sm-projekt.de/ecore/ar');
+modeltype COMMONS "strict" uses 'http://e4sm-projekt.de/ecore/com';
+modeltype ecore "strict" uses 'http://www.eclipse.org/emf/2002/Ecore';
+// https://www.eclipse.org/sirius/doc/developer/Meta-models.html	
+
+transformation a2s(in a:Architecture, out s:SDescription);
+
+main() {
+	log("[a2s] Transformation started.");
+	a.rootObjects()[Architecture::Architecture] -> map mapArchitecture(); 
+	log("[a2s] Transformation ended.");
+}
+
+helper String::asSafeString() : String {
+	return self.replaceAll("[\\s#\\\\{}<>\\|`^/\"]", "_").toLowerCase();
+}
+
+helper String::asClassName() : EString {
+	return self.replaceAll("[\\s-]", "").firstToUpper();
+}
+
+mapping Architecture::Architecture::mapArchitecture() : SDescription::Group{
+   log("[a2s] Transforming Architecture " + self.name);
+   result.name := "project";
+   result.version := "12.0.0.2017041100";
+   
+   
+   var ucp : UserColorsPalette := object UserColorsPalette{}; 
+   ucp.name := "a2s Palette";
+   ucp.entries += self.modelelements[Architecture::BlockStyle]->collect(l : Architecture::BlockStyle | l.backgroundColor)->map mapColor();
+   ucp.entries += self.modelelements[Architecture::BlockStyle]->collect(l : Architecture::BlockStyle | l.labelColor)->map mapColor();
+   ucp.entries += self.modelelements[Architecture::BlockStyle]->collect(l : Architecture::BlockStyle | l.borderColor)->map mapColor();
+   ucp.entries += self.modelelements[Architecture::LineStyle]->collect(l : Architecture::LineStyle | l.color)->map mapColor();
+   result.userColorsPalettes += ucp;
+   
+   //Define the viewpoint
+   var vp : SDescription::Viewpoint = object SDescription::Viewpoint{};
+   vp.name := "MyViewpoint";
+   vp.label := self.name + " Viewpoint";
+   vp.modelFileExtension := self.name.asSafeString();
+   
+   var je : SDescription::JavaExtension = object SDescription::JavaExtension{};
+   je.qualifiedClassName :=  self.name.asSafeString()+".design.Services";
+   vp.ownedJavaExtensions := je;
+   
+   
+   vp.ownedRepresentations := self.diagrams->map mapDiagram(self.name.asClassName());
+   
+   //Add the viewpoint to the group
+   result.ownedViewpoints := vp;
+}
+
+mapping COMMONS::Color::mapColor() : SViewpoint::description::UserFixedColor{
+	log("[a2s] Transforming Colors ");
+	result.name := "a2s_"+self.toString();
+	if(self.toString() = "black"){
+		result.red := 0;
+		result.green := 0;
+		result.blue := 0;
+	}
+	else if(self.toString() = "white"){
+		result.red := 255;
+		result.green := 255;
+		result.blue := 255;
+	}
+	else if(self.toString() = "green"){
+		result.red := 0;
+		result.green := 153;
+		result.blue := 0;
+	}
+	else if (self.toString() = "red"){
+		result.red := 220;
+		result.green := 0;
+		result.blue := 0;
+	}
+	else if (self.toString() = "blue"){
+		result.red := 30;
+		result.green := 144;
+		result.blue := 255;
+	}
+	else if (self.toString() = "orange"){
+		result.red := 255;
+		result.green := 140;
+		result.blue := 0;
+	}
+	else if (self.toString() = "gray"){
+		result.red := 125;
+		result.green := 125;
+		result.blue := 125;
+	}
+	else if (self.toString() = "yellow"){
+		result.red := 255;
+		result.green := 255;
+		result.blue := 51;
+	}
+	else if (self.toString() = "brown"){
+		result.red := 139;
+		result.green := 0;
+		result.blue := 0;
+	}
+	else if (self.toString() = "pink"){
+		result.red := 255;
+		result.green := 192;
+		result.blue := 203;
+	}
+	else if (self.toString() = "turquoise"){
+		result.red := 64;
+		result.green := 224;
+		result.blue := 208;
+	}
+	else{
+		assert error (false) with log ("[a2s] Color transformation not defined for "+ self.toString());
+	};
+	//log(self.toString());
+}
+
+mapping Architecture::Diagram::mapDiagram (architectureName : String) : SDiagramDescription::DiagramDescription{
+  log("[a2s] Transforming Diagram " + self.name);
+  result.name := self.name.asSafeString() + "_diagram_id";
+  result.label := self.name + " Diagram";
+  result.enablePopupBars := true;
+  result.initialisation:=true;
+  domainClass :=architectureName+"::"+architectureName.asClassName()+"Root";
+  
+   // Tool section: Invisible Tools
+  var tsInvisibleTools : SDiagramDescription::tool::ToolSection := object SDiagramDescription::tool::ToolSection{};
+  tsInvisibleTools.name := "invisible_tool_section_id";
+  tsInvisibleTools.label := "Invisible Tools";
+  
+  var renameTool : SDiagramDescription::tool::DirectEditLabel := object SDiagramDescription::tool::DirectEditLabel{};
+  renameTool.name := "rename_tool_id";
+  renameTool.label := "Rename Nodes";
+  
+  var set_name : SViewpoint::description::tool::SetValue := object SViewpoint::description::tool::SetValue{};
+  set_name.featureName := "name";
+  set_name.valueExpression := "var:0";
+  renameTool.initialOperation.firstModelOperations := set_name;
+  
+  tsInvisibleTools.ownedTools += renameTool;
+  
+  var l : SDiagramDescription::Layer = object SDiagramDescription::Layer{};
+  l.name := "Default";
+  l.nodeMappings := self.elements[Architecture::Node]->map node2NodeMapping(architectureName, renameTool);
+  l.containerMappings := self.elements[Architecture::Container]->map container2ContainerMapping(architectureName, renameTool);
+  l.edgeMappings := self.elements[Architecture::Edge]->map edge2EdgeMapping(architectureName, self.elements[Architecture::Item]);
+  
+  // Tool section: Create Elements
+  var ts : SDiagramDescription::tool::ToolSection := object SDiagramDescription::tool::ToolSection{};
+  ts.name := "create_elements_tool_section_id";
+  ts.label := "Create Elements";
+  ts.ownedTools := self.elements[Architecture::ModelElement]->map modelElement2CreateTool(architectureName);
+  ts.ownedTools += self.elements[Architecture::Container]->map container2CreateTool(architectureName);
+  
+  // Tool section: Create Connectors
+  var tsCreateConnectors : SDiagramDescription::tool::ToolSection := object SDiagramDescription::tool::ToolSection{};
+  tsCreateConnectors.name := "create_connectors_tool_section_id";
+  tsCreateConnectors.label := "Create Connectors";
+  tsCreateConnectors.ownedTools += self.elements[Architecture::Edge]->map edge2CreateTool(architectureName);
+
+  
+  l.toolSections := ts;
+  l.toolSections += tsCreateConnectors;
+  l.toolSections += tsInvisibleTools;
+  
+  result.defaultLayer := l;
+   
+
+  
+  //Set the 2 metamodels //TODO
+  var p:ecore::EPackage;
+  p.name := "Test";
+  p.nsURI := "https://www.test.com";
+  p.nsPrefix := "test";
+  result._metamodel += p;
+}
+
+mapping Architecture::ModelElement::modelElement2CreateTool(namespace : String) : SDiagramDescription::tool::NodeCreationDescription when {
+not self.isAbstract and 
+not self.oclIsTypeOf(Architecture::Edge) and not self.oclIsTypeOf(Architecture::Container)}{
+   log("[a2s] Node creation tool for " + self.name);
+   result.name := self.name + "_creation_id";
+   result.label := "Create new " + self.name;
+   result.nodeMappings := self.oclAsType(Architecture::Node).resolveone(SDiagramDescription::NodeMapping);
+   
+   result.variable.name := "container";
+   result.viewVariable.name := "containerView";
+   
+   var ci : SViewpoint::description::tool::CreateInstance := object SViewpoint::description::tool::CreateInstance{};
+   ci.typeName := namespace+"::"+self.name.asClassName();
+   ci.referenceName := "modelelements";
+   
+   var smo : SViewpoint::description::tool::SetValue := object SViewpoint::description::tool::SetValue{};
+   smo.featureName := "name";
+   smo.valueExpression := "aql: '" + self.name + " ' + container.oclAsType(architectureImpl::Root).modelelements->filter(" + namespace + "::" + self.name.asClassName() + ")->size()";
+   ci.subModelOperations := smo;
+   
+   result.initialOperation.firstModelOperations := ci;
+   
+   //var initOp : SViewpoint::description::tool::InitialNodeCreationOperation := object SViewpoint::description::tool::InitialNodeCreationOperation();
+   //result.initialOperation := initOp;
+}
+
+mapping Architecture::ModelElement::container2CreateTool(namespace : String) : SDiagramDescription::tool::ContainerCreationDescription
+when{not self.isAbstract}{
+   log("[a2s] Node creation tool for " + self.name);
+   result.name := self.name + "_creation_id";
+   result.label := "Create new " + self.name;
+   result.containerMappings := self.oclAsType(Architecture::Container).resolveone(SDiagramDescription::ContainerMapping);
+   
+   result.variable.name := "container";
+   result.viewVariable.name := "containerView";
+   
+   var ci : SViewpoint::description::tool::CreateInstance := object SViewpoint::description::tool::CreateInstance{};
+   ci.typeName := namespace+"::"+self.name.asClassName();
+   ci.referenceName := "modelelements";
+   
+   var smo : SViewpoint::description::tool::SetValue := object SViewpoint::description::tool::SetValue{};
+   smo.featureName := "name";
+   smo.valueExpression := "aql: '" + self.name + " ' + container.oclAsType(architectureImpl::Root).modelelements->filter(" + namespace + "::" + self.name.asClassName() + ")->size()";
+   ci.subModelOperations := smo;
+   
+   result.initialOperation.firstModelOperations := ci;
+   
+   //var initOp : SViewpoint::description::tool::InitialNodeCreationOperation := object SViewpoint::description::tool::InitialNodeCreationOperation();
+   //result.initialOperation := initOp;
+}
+
+mapping Architecture::Edge::edge2CreateTool(namespace : String) : SDiagramDescription::tool::EdgeCreationDescription
+when{not self.isAbstract}
+{
+   log("[a2s] Node creation tool for " + self.name);
+   result.name := self.name + "_creation_id";
+   result.label := "Create new " + self.name;
+   result.precondition := "service:container.canConnect"+self.name.asClassName()+"(preSource,preTarget)";
+   
+   result.edgeMappings := self.oclAsType(Architecture::Edge).resolveone(SDiagramDescription::EdgeMapping);
+   
+   result.sourceVariable.name := "source";
+   result.targetVariable.name := "target";
+   result.sourceViewVariable.name := "sourceView";
+   result.targetViewVariable.name := "targetView";
+   
+   // Change context operation
+   var cc : SViewpoint::description::tool::ChangeContext := object SViewpoint::description::tool::ChangeContext{};
+   cc.browseExpression := "aql:source->closure(e | e.eContainer() )->filter(" + namespace + "::" + namespace.asClassName() + "Root)->first()";
+   
+   // Create instance
+   var ci : SViewpoint::description::tool::CreateInstance := object SViewpoint::description::tool::CreateInstance{};
+   ci.typeName := namespace+"::"+self.name.asClassName();
+   ci.referenceName := "modelelements";
+   
+   // Set value: source
+   var svs : SViewpoint::description::tool::SetValue := object SViewpoint::description::tool::SetValue{};
+   svs.featureName := "source";
+   svs.valueExpression := "var:source";
+   
+   // Set value: target
+   var svt : SViewpoint::description::tool::SetValue := object SViewpoint::description::tool::SetValue{};
+   svt.featureName := "target";
+   svt.valueExpression := "var:target";
+   
+   ci.subModelOperations := svs;
+   ci.subModelOperations += svt;
+   cc.subModelOperations := ci;
+   
+   result.initialOperation.firstModelOperations := cc;
+   
+   //var initOp : SViewpoint::description::tool::InitialNodeCreationOperation := object SViewpoint::description::tool::InitialNodeCreationOperation();
+   //result.initialOperation := initOp;
+}
+
+
+mapping Architecture::Node::node2NodeMapping(namespace : String, directEdit : SDiagramDescription::tool::DirectEditLabel) : SDiagramDescription::NodeMapping
+when{not self.isAbstract}
+{
+  log("[a2s] Transforming Node " + self.name);
+  result.name := "node_"+self.name.asSafeString()+"_id";
+
+  	result.semanticCandidatesExpression := "aql:self.modelelements->filter("+namespace+"::"+self.name.asClassName()+")";
+
+  result.label := self.name;
+  result.domainClass := namespace +"::"+ self.name.asClassName();
+  result.labelDirectEdit := directEdit;
+  
+  //TODO: the right check here would be "if self has at least one subclass"
+  if(self.isA->isEmpty()){
+  	result.preconditionExpression := "aql:self.oclIsTypeOf("+namespace+"::"+self.name.asClassName()+")";
+  };
+  
+  //If the node or its ancestors has allowed ports, generate them
+  if(self.allowedPorts->size()>0 or self.isA.oclAsType(Architecture::Node).allowedPorts->size()>0){
+  	result.borderedNodeMappings += self.allowedPorts->union(self.isA.oclAsType(Architecture::Node).allowedPorts)->map port2BorderedNodeMapping(namespace);
+  };
+  
+  //Set up the node style
+  var s:SDiagramDescription::style::SquareDescription = object SDiagramDescription::style::SquareDescription{};
+  s.labelSize := 12;
+  
+  s.labelColor := self.labelColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.borderColor := self.borderColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.color := self.backgroundColor.resolveone(SViewpoint::description::UserFixedColor);
+  
+  s.labelSize := 10;
+  s.showIcon := false;
+  s.tooltipExpression := self.name;
+  s.sizeComputationExpression := "aql:self.name->size()*7";
+  s.labelPosition := SDiagram::LabelPosition::node;
+  s.resizeKind := SDiagram::ResizeKind::NSEW;
+  
+  result.style := s;
+}
+
+mapping Architecture::Node::node2SubnodeMapping(namespace : String, directEdit : SDiagramDescription::tool::DirectEditLabel, containerName : String) : SDiagramDescription::NodeMapping
+when{not self.isAbstract}{
+  log("[a2s] Transforming Subnode " + self.name);
+  result.name := "subnode_"+self.name.asSafeString()+"_in_"+ containerName+"_id";
+  result.semanticCandidatesExpression := "aql:self.children";
+  result.label := self.name + " in " + containerName;
+  result.domainClass := namespace +"::"+ self.name.asClassName();
+  result.labelDirectEdit := directEdit;
+  
+  //TODO: the right check here would be "if self has at least one subclass"
+  if(self.isA->isEmpty()){
+  	result.preconditionExpression := "aql:self.oclIsTypeOf("+namespace+"::"+self.name.asClassName()+")";
+  };
+  
+  //If the node or its ancestors has allowed ports, generate them
+  if(self.allowedPorts->size()>0 or self.isA.oclAsType(Architecture::Node).allowedPorts->size()>0){
+  	result.borderedNodeMappings += self.allowedPorts->union(self.isA.oclAsType(Architecture::Node).allowedPorts)->map port2BorderedNodeMapping(namespace);
+  };
+  
+  //Set up the node style
+  var s:SDiagramDescription::style::SquareDescription = object SDiagramDescription::style::SquareDescription{};
+  s.labelSize := 10;
+  
+  s.labelColor := self.labelColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.borderColor := self.borderColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.color := self.backgroundColor.resolveone(SViewpoint::description::UserFixedColor);
+  
+  s.showIcon := false;
+  s.tooltipExpression := self.name;
+  s.sizeComputationExpression := "aql:self.name->size()*7";
+  s.labelPosition := SDiagram::LabelPosition::node;
+  s.resizeKind := SDiagram::ResizeKind::NSEW;
+  
+  result.style := s;
+}
+
+mapping Architecture::Port::port2BorderedNodeMapping(namespace : String) : SDiagramDescription::NodeMapping
+when{not self.isAbstract}{
+  log("[a2s] Transforming Port " + self.name);
+  result.name := "port_"+self.name+"_id";
+  result.domainClass := namespace + "::"+self.name.asClassName();
+  
+  //Set up the port style
+  var s:SDiagramDescription::style::SquareDescription = object SDiagramDescription::style::SquareDescription{};
+  s.labelSize := 12;
+  
+  s.labelColor := self.labelColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.borderColor := self.borderColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.color := self.backgroundColor.resolveone(SViewpoint::description::UserFixedColor);
+  
+  s.showIcon := false;
+  s.tooltipExpression := self.name;
+  s.sizeComputationExpression := "4";
+  s.labelPosition := SDiagram::LabelPosition::node;
+  s.resizeKind := SDiagram::ResizeKind::NSEW;
+  
+  result.style := s;
+}
+
+
+mapping Architecture::Container::container2ContainerMapping(namespace : String, directEdit : SDiagramDescription::tool::DirectEditLabel) : SDiagramDescription::ContainerMapping 
+when{not self.isAbstract}{
+  log("[a2s] Transforming Container " + self.name);
+  result.name := "container_"+self.name.asSafeString()+"_id";
+  result.semanticCandidatesExpression := "aql:self.modelelements->filter("+namespace+"::"+self.name.asClassName()+")";
+  result.label := self.name;
+  result.domainClass := namespace +"::"+ self.name.asClassName();
+  result.labelDirectEdit := directEdit;
+  
+  //TODO: the right check here would be "if self has at least one subclass"
+  if(self.isA->isEmpty()){
+  	result.preconditionExpression := "aql:self.oclIsTypeOf("+namespace+"::"+self.name.asClassName()+")";
+  };
+  //result.reusedNodeMappings := self.allowedNodes.resolve(SDiagramDescription::NodeMapping);
+  
+  //TODO: containers should be transformed, too
+  result.subNodeMappings := self.allowedChildren[Architecture::Node]->map node2SubnodeMapping(namespace, directEdit, self.name.asClassName());
+  
+  //Set up the container style
+  var s:SDiagramDescription::style::FlatContainerStyleDescription = object SDiagramDescription::style::FlatContainerStyleDescription{};
+  s.labelSize := 12;
+  
+  s.labelColor := self.labelColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.borderColor := self.borderColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.backgroundColor := self.backgroundColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.foregroundColor := self.backgroundColor.resolveone(SViewpoint::description::UserFixedColor);
+  s.borderSizeComputationExpression := "1";
+  
+  s.showIcon := false;
+  s.tooltipExpression := self.name;
+    
+  result.style := s;
+}
+
+
+mapping Architecture::Edge::edge2EdgeMapping(namespace : String, items : OrderedSet(Architecture::Item)) : SDiagramDescription::EdgeMapping when {not self.isAbstract}{
+  log("[a2s] Transforming Edge " + self.name);
+  result.name := "edge_"+self.name.asSafeString()+"_id";
+  result.semanticCandidatesExpression := "aql:self.modelelements->filter("+namespace+"::"+self.name.asClassName()+")";
+  result.label := self.name;
+  result.domainClass := namespace +"::"+ self.name.asClassName();
+  result.useDomainElement := true;
+  
+  	//This avoids showing double edges in the subclasses.
+    //TODO: the right check here would be "if self has at least one subclass"
+    if(self.isA->isEmpty()){
+  		result.preconditionExpression := "aql:self.oclIsTypeOf("+namespace+"::"+self.name.asClassName()+")";
+  	};
+  
+  result.targetFinderExpression := "feature:target";
+  result.sourceFinderExpression := "feature:source";
+  
+  result.sourceMapping := (items->select(i | i.outgoing->select(c|c.connector=self or c.connector = self.isA)->size()>0)
+  ->union(items[Architecture::Node]->select(i | i.oclAsType(Architecture::Node).isA.oclAsType(Architecture::Node).outgoing->select(c|c.connector=self or c.connector = self.isA)->size()>0)))
+  //->union(items->select(i | i.oclAsType(Architecture::Container).isA.outgoing->select(c|c.connector=self or c.connector = self.isA)->size()>0))
+  .resolve(SDiagramDescription::NodeMapping);
+  result.targetMapping := (items->select(i | i.incoming->select(c|c.connector=self or c.connector = self.isA)->size()>0)
+  ->union(items[Architecture::Node]->select(i : Architecture::Node | i.isA.oclAsType(Architecture::Node).incoming->select(c|c.connector=self or c.connector = self.isA)->size()>0)))
+  //->union(items->select(co | co.oclAsType(Architecture::Container).isA.incoming->select(c|c.connector=self or c.connector = self.isA)->size()>0))
+  .resolve(SDiagramDescription::NodeMapping);
+
+  var s:SDiagramDescription::style::EdgeStyleDescription = object SDiagramDescription::style::EdgeStyleDescription{};
+  s.sizeComputationExpression := self.width.toString();
+  s.strokeColor := self.color.resolveone(SViewpoint::description::UserFixedColor);
+  
+  if(self.bidirectional){
+     s.targetArrow := EdgeArrows::NoDecoration;
+  };
+//  SDescription::style::StyleDescription
+  var clsd : SDiagram::description::style::CenterLabelStyleDescription := object SDiagram::description::style::CenterLabelStyleDescription{};
+  clsd.labelSize := 12;
+  s.centerLabelStyleDescription := clsd;
+  
+  result.style := s;
+}

@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Architecture2Sirius Plug-in
+Bundle-SymbolicName: Architecture2Sirius
+Bundle-Version: 0.1.0.qualifier
+Require-Bundle: org.eclipse.core.runtime,
+ org.eclipse.m2m.qvt.oml,
+ de.e4sm.tuilmenau.sse.architecture.model;bundle-version="1.0.0",
+ de.e4sm.tuilmenau.sse.architectureimpl.model;bundle-version="1.0.0",
+ org.eclipse.sirius;bundle-version="6.4.0"
+Bundle-ActivationPolicy: lazy
